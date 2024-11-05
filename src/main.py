@@ -9,7 +9,6 @@ from dash import dash_table
 from jupyter_dash import JupyterDash
 from plotly.subplots import make_subplots
 
-
 # from style import *
 from config.paths import *
 from config.logging import *
