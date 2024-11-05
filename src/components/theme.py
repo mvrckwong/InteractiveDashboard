@@ -1,0 +1,1 @@
+CHART_THEME = 'plotly_dark'
