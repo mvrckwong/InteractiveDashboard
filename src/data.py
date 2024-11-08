@@ -4,116 +4,102 @@ import pandas as pd
 
 def get_transactions_df() -> pd.DataFrame:
     
-    # Get the data.
-    file = list(DATA_DIR.glob("transactions.xlsx"))[0]
-    
-    # Read the data.
-    df_transactions = pd.read_excel(file, engine='openpyxl')
-    df_transactions.date = pd.to_datetime(
-        df_transactions.date, format='%d/%m/%Y'
-    )
-    
-    return df_transactions
+      # Get the data.
+      file = list(DATA_DIR.glob("transactions.xlsx"))[0]
+      
+      # Read the data.
+      df_transactions = pd.read_excel(file, engine='openpyxl')
+      df_transactions.date = pd.to_datetime(
+            df_transactions.date, format='%d/%m/%Y'
+      )
+      
+      return df_transactions
 
 def get_positions_df() -> pd.DataFrame:
-    
-    # Get the data.
-    file = list(DATA_DIR.glob("positions.csv"))[0]
-    
-    # Read the data.
-    df_positions = pd.read_csv(file)
-    df_positions = df_positions.sort_values(
-        by='current_value', ascending=False
-    ).round(2)
-    
-    return df_positions
+      
+      # Get the data.
+      file = list(DATA_DIR.glob("positions.csv"))[0]
+      
+      # Read the data.
+      df_positions = pd.read_csv(file)
+      df_positions = df_positions.sort_values(
+            by='current_value', ascending=False
+      ).round(2)
+      
+      return df_positions
 
 def get_portfolio_df() -> pd.DataFrame:
     
-    # Get the data.
-    file = list(DATA_DIR.glob("portfolio.csv"))[0]
-    
-    # Read the data.
-    df_pfvalue = pd.read_csv(file)
-    df_pfvalue = df_pfvalue.set_index('date')
-    
-    return df_pfvalue
+      # Get the data.
+      file = list(DATA_DIR.glob("portfolio.csv"))[0]
+      
+      # Read the data.
+      df_pfvalue = pd.read_csv(file)
+      df_pfvalue = df_pfvalue.set_index('date')
+      
+      return df_pfvalue
 
 def prepare_portfolio_analysis():
-    """
-    Prepare portfolio analysis DataFrame with comprehensive metrics
-    """
+      
+      # Get the following data
+      df_pfvalue = get_portfolio_df()
+      df_transactions = get_transactions_df()
+      
+      # Static Variables
+      initial_date = '2020-01-09'
+      
+      # Processing the data
+      df_pfvalue = df_pfvalue[
+            df_pfvalue.index > initial_date
+      ]
+      df_pfvalue = df_pfvalue[
+            [
+                  'portf_value', 
+                  'sp500_mktvalue', 
+                  'ptf_value_pctch',                         
+                  'sp500_pctch', 
+                  'ptf_value_diff', 
+                  'sp500_diff'
+            ]
+      ]
+      df_pfvalue.reset_index(inplace=True)
+      df_pfvalue.round(2)
+      
+      # Calculating the cumulative growth.
+      df_pfvalue.rename(columns={'index': 'date'}, inplace=True)
+      df_pfvalue.date = pd.to_datetime(df_pfvalue.date)
+      
+      # Get the range based on the data
+      idx = pd.date_range(
+            df_transactions.date.min(), df_pfvalue.date.max()
+      )
+      
+      # Calculated the returns and invested
+      df_invested = (df_transactions.groupby('date').sum()['cashflow']*-1)
+      df_invested = df_invested.reindex(idx, fill_value=0).reset_index()
+      df_invested.rename(columns={'index': 'date'}, inplace=True)
+      df_invested['alltime_cashflow'] = df_invested['cashflow'].cumsum()
+      
+      # Combine the following data
+      df_combine_pfvalues = pd.merge(df_pfvalue, df_invested, on='date', how='inner')
+      
+      # Calculations
+      df_combine_pfvalues['net_invested'] = df_combine_pfvalues['cashflow'].cumsum()
+      df_combine_pfvalues['net_value'] = df_combine_pfvalues.portf_value - df_combine_pfvalues.net_invested
+      df_combine_pfvalues['ptf_growth'] = df_combine_pfvalues.net_value/df_combine_pfvalues['net_value'].iloc[0]
+      df_combine_pfvalues['sp500_growth'] = df_combine_pfvalues.sp500_mktvalue/df_combine_pfvalues['sp500_mktvalue'].iloc[0]
+      
+      # Calculating the adjusted portfolio growth
+      df_combine_pfvalues['adjusted_ptfchg'] = (df_combine_pfvalues['net_value'].pct_change()*100).round(2)
+      df_combine_pfvalues['highvalue'] = df_combine_pfvalues['net_value'].cummax()
+      df_combine_pfvalues['drawdownpct'] = (df_combine_pfvalues['net_value']/df_combine_pfvalues['highvalue']-1).round(4)*100
+      
+      return df_pfvalue, df_invested
 
-    # Static Variable
-    initial_date = '2020-01-09'
 
-    # Get relevant data
-    df_transactions = get_transactions_df().copy()
-    df_portfolio_value = get_portfolio_df().copy()
-
-    # Filter portfolio values from initial date
-    df_portfolio_value = df_portfolio_value[
-            df_portfolio_value.index > initial_date
-        ]
-
-    # Select and round relevant columns
-    columns_to_keep = [
-        'portf_value', 
-        'sp500_mktvalue', 
-        'ptf_value_pctch', 
-        'sp500_pctch', 
-        'ptf_value_diff', 
-        'sp500_diff'
-    ]
-
-    # Processing the data.
-    df_portfolio_value = df_portfolio_value[columns_to_keep].reset_index().round(2)
-    df_portfolio_value.rename(columns={'index': 'date'}, inplace=True)
-    df_portfolio_value['date'] = pd.to_datetime(df_portfolio_value['date'])
-
-    # Calculate the date range.
-    date_range = pd.date_range(
-        df_transactions.date.min(), 
-        df_portfolio_value.date.max()
-    )
-
-    # Calculate the cashflow
-    df_invested = (df_transactions.groupby('date')['cashflow'].sum() * -1)
-    df_invested = df_invested.reindex(date_range, fill_value=0).reset_index()
-    df_invested.columns = ['date', 'cashflow']
-    df_invested['alltime_cashflow'] = df_invested['cashflow'].cumsum()
-
-    # Merge portfolio values with cashflow
-    df_combine_pfvalue = pd.merge(
-        df_transactions, 
-        df_invested, 
-        on='date', 
-        how='inner'
-    )
-
-    # Calculate net investment and portfolio growth metrics
-    df_combine_pfvalue['net_invested'] = df_combine_pfvalue['cashflow'].cumsum()
-    df_combine_pfvalue['net_value'] = df_combine_pfvalue['portf_value'] - \
-        df_combine_pfvalue['net_invested']
-
-    # Compute growth and performance metrics
-    first_net_value = df_combine_pfvalue['net_value'].iloc[0]
-    first_sp500_value = df_combine_pfvalue['sp500_mktvalue'].iloc[0]
-
-    # Calculate the growth
-    df_combine_pfvalue['ptf_growth'] = df_combine_pfvalue['net_value'] / first_net_value
-    df_combine_pfvalue['sp500_growth'] = df_combine_pfvalue['sp500_mktvalue'] / first_sp500_value
-
-    # Calculate adjusted portfolio change and drawdown
-    df_combine_pfvalue['adjusted_ptfchg'] = (df_combine_pfvalue['net_value'].pct_change() * 100).round(2)
-    df_combine_pfvalue['highvalue'] = df_combine_pfvalue['net_value'].cummax()
-    df_combine_pfvalue['drawdownpct'] = (
-        (df_combine_pfvalue['net_value'] / df_combine_pfvalue['highvalue'] - 1) * 100
-    ).round(4)
-
-    return df_invested, df_combine_pfvalue
-
-# Main function
-if __name__ == "__main__":
-    df_invested, df_combine_pfvalue = prepare_portfolio_analysis()
-    print(df_invested)
+if __name__ == '__main__':
+      # df_pfvalue, df_invested = prepare_portfolio_analysis()
+      # print(df_pfvalue)
+      # print(df_invested)
+      
+      None
