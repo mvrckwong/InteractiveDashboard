@@ -1,28 +1,44 @@
 from data import get_portfolio_df, get_transactions_df, get_positions_df
 import pandas as pd
 
-df_pfvalue = get_portfolio_df()
-all_transactions = get_transactions_df()
 
 
-initial_date = '2020-01-09'
 
-# Processing
-df_pfvalue = df_pfvalue[
-      df_pfvalue.index > initial_date
-]
-df_pfvalue = df_pfvalue[
-      [
-            'portf_value', 
-            'sp500_mktvalue', 
-            'ptf_value_pctch',                         
-            'sp500_pctch', 
-            'ptf_value_diff', 
-            'sp500_diff'
+def prepare_portfolio_analysis():
+      
+      # Get the following data
+      df_pfvalue = get_portfolio_df()
+      df_transactions = get_transactions_df()
+      
+      # Static Variables
+      initial_date = '2020-01-09'
+      
+      # Processing the data
+      df_pfvalue = df_pfvalue[
+            df_pfvalue.index > initial_date
       ]
-]
-df_pfvalue.reset_index(inplace=True)
+      df_pfvalue = df_pfvalue[
+            [
+                  'portf_value', 
+                  'sp500_mktvalue', 
+                  'ptf_value_pctch',                         
+                  'sp500_pctch', 
+                  'ptf_value_diff', 
+                  'sp500_diff'
+            ]
+      ]
+      df_pfvalue.reset_index(inplace=True)
+      df_pfvalue.round(2)
+      
+      # Calculating the cumulative growth.
+      df_pfvalue.rename(columns={'index': 'date'}, inplace=True)
+      df_pfvalue.date = pd.to_datetime(df_pfvalue.date)
+      
+      return df_pfvalue
 
+
+
+print(prepare_portfolio_analysis())
 
 
 # # plotlydf_portfval = portf_allvalues.copy()
